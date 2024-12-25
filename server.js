@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const { Profile, Match } = require('./db');
+const { updatePlayerRatings } = require('./services/ratingService');
 
 const app = express();
 app.use(express.json());
@@ -14,7 +15,18 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27018/sportal',
 // Profile endpoints
 app.post('/api/profile/create', async (req, res) => {
   try {
-    const profile = new Profile(req.body);
+    // Initialize protected fields with default values
+    const profileData = {
+      ...req.body,
+      rating: 1500,
+      ratingDeviation: 350,
+      volatility: 0.06,
+      wins: 0,
+      loss: 0,
+      num_unverified_matches: 0
+    };
+    
+    const profile = new Profile(profileData);
     await profile.save();
     res.status(201).json(profile);
   } catch (error) {
@@ -113,13 +125,27 @@ app.post('/api/match/accept-finish', async (req, res) => {
     const challengerProfile = await Profile.findById(match.challenger);
     const opponentProfile = await Profile.findById(match.opponent);
     
-    if (match.challenger_score > match.opponent_score) {
+    // Determine winner and update basic stats
+    const challengerWon = match.challenger_score > match.opponent_score;
+    if (challengerWon) {
       challengerProfile.wins += 1;
       opponentProfile.loss += 1;
     } else {
       challengerProfile.loss += 1;
       opponentProfile.wins += 1;
     }
+    
+    // Update ratings
+    const newRatings = updatePlayerRatings(challengerProfile, opponentProfile, challengerWon);
+    
+    // Apply new ratings to profiles
+    challengerProfile.rating = newRatings.challenger.rating;
+    challengerProfile.ratingDeviation = newRatings.challenger.ratingDeviation;
+    challengerProfile.volatility = newRatings.challenger.volatility;
+    
+    opponentProfile.rating = newRatings.opponent.rating;
+    opponentProfile.ratingDeviation = newRatings.opponent.ratingDeviation;
+    opponentProfile.volatility = newRatings.opponent.volatility;
     
     await challengerProfile.save();
     await opponentProfile.save();
@@ -167,6 +193,27 @@ app.get('/api/match/get-matches', async (req, res) => {
     res.json(matches);
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+// Add this new endpoint for database cleanup
+app.post('/api/profile/clean-db', async (req, res) => {
+  try {
+    // Only allow in development environment
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ 
+        error: 'Database cleanup not allowed in production' 
+      });
+    }
+
+    // Delete all profiles
+    await Profile.deleteMany({});
+    // Delete all matches
+    await Match.deleteMany({});
+    
+    res.json({ success: true, message: 'Database cleaned' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

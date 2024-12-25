@@ -24,32 +24,26 @@ const profileSchema = new mongoose.Schema({
   },
   rating: {
     type: Number,
-    required: true,
     default: 1500
   },
-  rd: {
+  ratingDeviation: {
     type: Number,
-    required: true,
-    default: 350.0
+    default: 350
   },
-  rv: {
+  volatility: {
     type: Number,
-    required: true,
     default: 0.06
   },
   wins: {
     type: Number,
-    required: true,
     default: 0
   },
   loss: {
     type: Number,
-    required: true,
     default: 0
   },
   num_unverified_matches: {
     type: Number,
-    required: true,
     default: 0
   }
 }, {
@@ -59,9 +53,22 @@ const profileSchema = new mongoose.Schema({
   }
 });
 
-const Profile = mongoose.model('Profile', profileSchema);
+// Middleware to prevent updates to protected fields through the API
+profileSchema.pre('findOneAndUpdate', function(next) {
+  const update = this.getUpdate();
+  const protectedFields = ['rating', 'ratingDeviation', 'volatility', 'wins', 'loss', 'num_unverified_matches'];
+  
+  // Check if any protected fields are being updated through the API
+  const hasProtectedFields = protectedFields.some(field => field in update);
+  
+  if (hasProtectedFields) {
+    next(new Error('Cannot modify protected fields through the API'));
+  } else {
+    next();
+  }
+});
 
-module.exports = Profile; 
+const Profile = mongoose.model('Profile', profileSchema);
 
 const matchSchema = new mongoose.Schema({
   challenger: {
