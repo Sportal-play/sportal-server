@@ -1,23 +1,34 @@
-const { Glicko2 } = require('glicko2');
+import { Glicko2, Player } from 'glicko2';
+import { PlayerRating, RatingResult } from '../types/models';
 
-const settings = {
-  tau: 0.75,          // Rate volatility constraint
-  rating: 1500,      // Default rating
-  rd: 350,          // Default rating deviation
-  vol: 0.06         // Default volatility
+interface Settings {
+  tau: number;
+  rating: number;
+  rd: number;
+  vol: number;
+}
+
+const settings: Settings = {
+  tau: 0.75,
+  rating: 1500,
+  rd: 350,
+  vol: 0.06
 };
 
 const ranking = new Glicko2(settings);
 
-function updatePlayerRatings(challenger, opponent, challengerWon) {
-  // Create Glicko-2 players with their current ratings
-  const challengerPlayer = ranking.makePlayer(
+function updatePlayerRatings(
+  challenger: PlayerRating,
+  opponent: PlayerRating,
+  challengerWon: boolean
+): RatingResult {
+  const challengerPlayer: Player = ranking.makePlayer(
     challenger.rating || settings.rating,
     challenger.ratingDeviation || settings.rd,
     challenger.volatility || settings.vol
   );
   
-  const opponentPlayer = ranking.makePlayer(
+  const opponentPlayer: Player = ranking.makePlayer(
     opponent.rating || settings.rating,
     opponent.ratingDeviation || settings.rd,
     opponent.volatility || settings.vol
@@ -41,7 +52,8 @@ function updatePlayerRatings(challenger, opponent, challengerWon) {
   };
 }
 
-module.exports = {
+export {
   settings,
-  updatePlayerRatings
+  updatePlayerRatings,
+  Settings,
 }; 

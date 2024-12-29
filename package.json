@@ -4,11 +4,22 @@
   "description": "Sports Portal API",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node server.ts"
   },
   "dependencies": {
     "express": "^4.17.1",
     "glicko2": "^1.2.1",
     "mongoose": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/mongoose": "^5.11.96",
+    "@types/node": "^22.10.2",
+    "axios": "^1.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2",
+    "typescript-language-server": "^4.3.3"
   }
 }

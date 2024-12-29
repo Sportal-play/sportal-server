@@ -1,6 +1,7 @@
-const mongoose = require('mongoose');
+import mongoose, { Schema } from 'mongoose';
+import { IProfile, IMatch } from './types/models';
 
-const profileSchema = new mongoose.Schema({
+const profileSchema = new Schema<IProfile>({
   username: {
     type: String,
     required: true,
@@ -55,8 +56,8 @@ const profileSchema = new mongoose.Schema({
 
 // Middleware to prevent updates to protected fields through the API
 profileSchema.pre('findOneAndUpdate', function(next) {
-  const update = this.getUpdate();
-  const protectedFields = ['rating', 'ratingDeviation', 'volatility', 'wins', 'loss', 'num_unverified_matches'];
+  const update = this.getUpdate() as Partial<IProfile>;
+  const protectedFields: (keyof IProfile)[] = ['rating', 'ratingDeviation', 'volatility', 'wins', 'loss', 'num_unverified_matches'];
   
   // Check if any protected fields are being updated through the API
   const hasProtectedFields = protectedFields.some(field => field in update);
@@ -68,9 +69,9 @@ profileSchema.pre('findOneAndUpdate', function(next) {
   }
 });
 
-const Profile = mongoose.model('Profile', profileSchema);
+const Profile = mongoose.model<IProfile>('Profile', profileSchema);
 
-const matchSchema = new mongoose.Schema({
+const matchSchema = new Schema<IMatch>({
   challenger: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Profile',
@@ -84,7 +85,7 @@ const matchSchema = new mongoose.Schema({
   status: {
     type: String,
     required: true,
-    enum: ['request-play', 'accept-play', 'decline-play', 'request-finish', 'accept-finish', 'decline-finish']
+    enum: ['start-req', 'start-acc', 'start-rej', 'finish-req', 'finish-acc', 'finish-rej']
   },
   time_accept_play: {
     type: Date
@@ -100,6 +101,6 @@ const matchSchema = new mongoose.Schema({
   }
 });
 
-const Match = mongoose.model('Match', matchSchema);
+const Match = mongoose.model<IMatch>('Match', matchSchema);
 
-module.exports = { Profile, Match };
+export { Profile, Match };
