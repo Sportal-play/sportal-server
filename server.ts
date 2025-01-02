@@ -24,7 +24,7 @@ async function getProfileId(username: string): Promise<mongoose.Types.ObjectId> 
 async function findMatch(challenger: string, opponent: string): Promise<IMatch | null> {
   const challengerId = await getProfileId(challenger);
   const opponentId = await getProfileId(opponent);
-  
+
   return await Match.findOne({
     challenger: challengerId,
     opponent: opponentId
@@ -100,7 +100,7 @@ router.post('/api/profile/create', async (req: Request, res: Response) => {
       loss: 0,
       num_unverified_matches: 0
     };
-    
+
     const profile = new Profile(profileData);
     await profile.save();
     res.status(201).json(profile);
@@ -171,8 +171,8 @@ router.post('/api/match/start-req', async (req, res) => {
     });
 
     if (ongoingMatch) {
-      res.status(400).json({ 
-        error: 'An ongoing match already exists between these players' 
+      res.status(400).json({
+        error: 'An ongoing match already exists between these players'
       });
       return;
     }
@@ -183,6 +183,25 @@ router.post('/api/match/start-req', async (req, res) => {
       status: 'start-req'
     });
     await match.save();
+
+    // Store the ID value, not the match reference
+    const matchId = match._id;
+
+    setTimeout(async () => {
+      try {
+        const expiredMatch = await Match.findOne({
+          _id: matchId,
+          status: 'start-req'
+        });
+
+        if (expiredMatch)
+          //TODO maybe set status to start-rej instead of deleting the match
+          await Match.deleteOne({ _id: matchId });
+      } catch (error) {
+        console.error('Error cleaning up expired match:', error);
+      }
+    }, /* 2 minutes */ 2 * 60 * 1000);
+
     res.status(201).json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -226,13 +245,13 @@ router.post('/api/match/finish-req', async (req, res) => {
     validateParams(req.body, {
       challenger: { required: true, validator: validators.isString },
       opponent: { required: true, validator: validators.isString },
-      challenger_score: { 
-        required: true, 
+      challenger_score: {
+        required: true,
         validator: validators.isNonNegativeInteger,
         message: 'Challenger score must be a non-negative integer'
       },
-      opponent_score: { 
-        required: true, 
+      opponent_score: {
+        required: true,
         validator: validators.isNonNegativeInteger,
         message: 'Opponent score must be a non-negative integer'
       }
@@ -243,6 +262,25 @@ router.post('/api/match/finish-req', async (req, res) => {
     match.challenger_score = challenger_score;
     match.opponent_score = opponent_score;
     await match.save();
+
+    // Store the match ID for the timeout
+    const matchId = match._id;
+
+    setTimeout(async () => {
+      try {
+        const unconfirmedMatch = await Match.findOne({
+          _id: matchId,
+          status: 'finish-req'
+        });
+
+        if (unconfirmedMatch) {
+          unconfirmedMatch.status = 'finish-rej';
+          await unconfirmedMatch.save();
+        }
+      } catch (error) {
+        console.error('Error auto-rejecting match result:', error);
+      }
+    }, /* 5 minutes */ 5 * 60 * 1000);
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -263,8 +301,8 @@ router.post('/api/match/finish-acc', async (req, res) => {
     const opponentProfile = await Profile.findOne({ username: opponent });
 
     if (!challengerProfile || !opponentProfile) {
-      res.status(400).json({ 
-        error: 'One or both players not found in database' 
+      res.status(400).json({
+        error: 'One or both players not found in database'
       });
       return;
     }
@@ -277,8 +315,8 @@ router.post('/api/match/finish-acc', async (req, res) => {
     });
 
     if (!match) {
-      res.status(400).json({ 
-        error: 'No pending finish request found between these players' 
+      res.status(400).json({
+        error: 'No pending finish request found between these players'
       });
       return;
     }
@@ -286,7 +324,7 @@ router.post('/api/match/finish-acc', async (req, res) => {
     // Update match status
     match.status = 'finish-acc';
     match.time_finish = new Date();
-    
+
     // Determine winner and update basic stats
     const challengerWon = (match.challenger_score as number) > (match.opponent_score as number);
     if (challengerWon) {
@@ -296,23 +334,23 @@ router.post('/api/match/finish-acc', async (req, res) => {
       challengerProfile.loss += 1;
       opponentProfile.wins += 1;
     }
-    
+
     // Update ratings
     const newRatings = updatePlayerRatings(challengerProfile, opponentProfile, challengerWon);
-    
+
     // Apply new ratings to profiles
     challengerProfile.rating = newRatings.challenger.rating;
     challengerProfile.ratingDeviation = newRatings.challenger.ratingDeviation;
     challengerProfile.volatility = newRatings.challenger.volatility;
-    
+
     opponentProfile.rating = newRatings.opponent.rating;
     opponentProfile.ratingDeviation = newRatings.opponent.ratingDeviation;
     opponentProfile.volatility = newRatings.opponent.volatility;
-    
+
     await challengerProfile.save();
     await opponentProfile.save();
     await match.save();
-    
+
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -361,7 +399,7 @@ router.get('/api/match/get-matches', async (req, res) => {
 
     const { challenger } = req.query;
     const challengerId = await getProfileId(challenger as string);
-    const matches = await Match.find({ 
+    const matches = await Match.find({
       $or: [
         { challenger: challengerId },
         { opponent: challengerId }
@@ -378,8 +416,8 @@ router.post('/api/profile/clean-db', async (_, res) => {
   try {
     // Only allow in development environment
     if (process.env.NODE_ENV === 'production') {
-      res.status(403).json({ 
-        error: 'Database cleanup not allowed in production' 
+      res.status(403).json({
+        error: 'Database cleanup not allowed in production'
       });
       return;
     }
@@ -388,7 +426,7 @@ router.post('/api/profile/clean-db', async (_, res) => {
     await Profile.deleteMany({});
     // Delete all matches
     await Match.deleteMany({});
-    
+
     res.json({ success: true, message: 'Database cleaned' });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
