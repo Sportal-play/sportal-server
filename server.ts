@@ -3,14 +3,54 @@ import mongoose from 'mongoose';
 import { Profile, Match } from './db';
 import { updatePlayerRatings } from './services/ratingService';
 import { IProfile, IMatch } from './types/models';
+import expressWs from 'express-ws';
+import { WebSocket } from 'ws';
 
 const app = express();
+expressWs(app);
 app.use(express.json());
 
 const router = express.Router();
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27018/sportal');
+
+// WebSocket endpoint for challenger to get notified when request to start match is accepted or
+// rejected by opponent, or auto-rejected by server after 2 minutes
+const startRequestConnections: { [key: string]: WebSocket } = {};
+
+router.ws('/api/match/ws/start-req/:username', (ws, req) => {
+  const { username } = req.params;
+  startRequestConnections[username] = ws;
+
+  ws.on('close', () => {
+    delete startRequestConnections[username];
+  });
+});
+
+// WebSocket endpoint for challenger to get notified when request to finish match is accepted or
+// rejected by opponent, or auto-rejected by server after 5 minutes
+const finishRequestConnections: { [key: string]: WebSocket } = {};
+
+router.ws('/api/match/ws/finish-req/:username', (ws, req) => {
+  const { username } = req.params;
+  finishRequestConnections[username] = ws;
+
+  ws.on('close', () => {
+    delete finishRequestConnections[username];
+  });
+});
+
+// WebSocket endpoint for opponent to get notified when request to finish match is opened by
+// challenger
+const startAcceptConnections: { [key: string]: WebSocket } = {};
+
+router.ws('/api/match/ws/start-acc/:username', (ws, req) => {
+  const { username } = req.params;
+  startAcceptConnections[username] = ws;
+
+  ws.on('close', () => {
+    delete startAcceptConnections[username];
+  });
+});
 
 // Helper function types
 async function getProfileId(username: string): Promise<mongoose.Types.ObjectId> {
@@ -194,9 +234,17 @@ router.post('/api/match/start-req', async (req, res) => {
           status: 'start-req'
         });
 
-        if (expiredMatch)
+        if (expiredMatch) {
           //TODO maybe set status to start-rej instead of deleting the match
           await Match.deleteOne({ _id: matchId });
+          // Notify challenger via WebSocket
+          if (startRequestConnections[challenger]) {
+            startRequestConnections[challenger].send(JSON.stringify({
+              event: 'match-auto-rejected',
+              opponent
+            }));
+          }
+        }
       } catch (error) {
         console.error('Error cleaning up expired match:', error);
       }
@@ -219,6 +267,15 @@ router.post('/api/match/start-acc', async (req, res) => {
     const match = await updateMatchStatus(challenger, opponent, 'start-req', 'start-acc');
     match.time_accept_play = new Date();
     await match.save();
+
+    // Notify challenger via WebSocket
+    if (startRequestConnections[challenger]) {
+      startRequestConnections[challenger].send(JSON.stringify({
+        event: 'match-accepted',
+        opponent
+      }));
+    }
+
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -234,6 +291,12 @@ router.post('/api/match/start-rej', async (req, res) => {
 
     const { challenger, opponent } = req.body;
     const match = await updateMatchStatus(challenger, opponent, 'start-req', 'start-rej');
+
+    // Notify challenger via WebSocket
+    if (startRequestConnections[challenger]) {
+      startRequestConnections[challenger].send(JSON.stringify({ event: 'match-rejected', opponent }));
+    }
+
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -266,6 +329,15 @@ router.post('/api/match/finish-req', async (req, res) => {
     // Store the match ID for the timeout
     const matchId = match._id;
 
+    // Notify opponent via WebSocket
+    if (startAcceptConnections[opponent]) {
+      startAcceptConnections[opponent].send(JSON.stringify({
+        event: 'finish-request',
+        challenger
+      }));
+    }
+
+    // In the timeout, add notification for auto-rejection
     setTimeout(async () => {
       try {
         const unconfirmedMatch = await Match.findOne({
@@ -276,11 +348,20 @@ router.post('/api/match/finish-req', async (req, res) => {
         if (unconfirmedMatch) {
           unconfirmedMatch.status = 'finish-rej';
           await unconfirmedMatch.save();
+
+          // Notify challenger of auto-rejection
+          if (finishRequestConnections[challenger]) {
+            finishRequestConnections[challenger].send(JSON.stringify({
+              event: 'finish-auto-rejected',
+              opponent
+            }));
+          }
         }
       } catch (error) {
         console.error('Error auto-rejecting match result:', error);
       }
     }, /* 5 minutes */ 5 * 60 * 1000);
+
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -351,6 +432,14 @@ router.post('/api/match/finish-acc', async (req, res) => {
     await opponentProfile.save();
     await match.save();
 
+    // Notify challenger that finish was accepted
+    if (finishRequestConnections[challenger]) {
+      finishRequestConnections[challenger].send(JSON.stringify({
+        event: 'finish-accepted',
+        opponent,
+      }));
+    }
+
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -366,6 +455,15 @@ router.post('/api/match/finish-rej', async (req, res) => {
 
     const { challenger, opponent } = req.body;
     const match = await updateMatchStatus(challenger, opponent, 'finish-req', 'finish-rej');
+
+    // Notify challenger that finish was rejected
+    if (finishRequestConnections[challenger]) {
+      finishRequestConnections[challenger].send(JSON.stringify({
+        event: 'finish-rejected',
+        opponent
+      }));
+    }
+
     res.json(match);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -436,6 +534,10 @@ router.post('/api/profile/clean-db', async (_, res) => {
 app.use("/", router);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-}); 
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27018/sportal').then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+});
