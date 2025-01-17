@@ -141,11 +141,11 @@ async function testStateTransition(
     for (const profile of profiles) {
       await createProfile(profile);
     }
-    
+
     await transitionToState(matchRequest, fromState);
-    
+
     const endpoint = `${API_URL}/match/${toState}`;
-    const payload = toState === 'finish-req' 
+    const payload = toState === 'finish-req'
       ? { ...matchRequest, challenger_score: 21, opponent_score: 15 }
       : matchRequest;
 
@@ -194,7 +194,7 @@ async function testAllTransitions() {
   };
 
   console.log('\n=== Testing All State Transitions ===');
-  
+
   for (const fromState of states) {
     for (const toState of states) {
       const isValid = validTransitions[fromState]?.includes(toState);
@@ -212,6 +212,128 @@ async function testAllTransitions() {
   console.log(`Expected failures: ${expectedFailures}`);
 }
 
+async function confirmLongTest(testName: string, duration: number): Promise<boolean> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`\n⚠️  ${testName} will take ${duration} minutes to complete. Run this test? (y/N) `, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === 'y');
+    });
+  });
+}
+
+async function testAutoRejectStartRequest() {
+  console.log('\n=== Testing Auto-Rejection of Start Request ===');
+
+  try {
+    await cleanDatabase();
+    for (const profile of profiles) {
+      await createProfile(profile);
+    }
+
+    const matchRequest: MatchRequest = {
+      challenger: 'player1',
+      opponent: 'player2'
+    };
+
+    console.log('Creating start request...');
+    await axios.post(`${API_URL}/match/start-req`, matchRequest);
+
+    console.log(`Connecting to ws wait endpoint ${API_URL}/match/ws/start-req/player2`);
+    // TODO here
+
+    console.log('Waiting for auto-rejection (2 minutes + buffer)...');
+    await new Promise(resolve => setTimeout(resolve, 2.1 * 60 * 1000));
+
+    // Get all matches for the challenger
+    const response = await axios.get(`${API_URL}/match/find-matches`, {
+      params: {
+        challenger: matchRequest.challenger,
+        opponent: matchRequest.opponent,
+      }
+    });
+
+    // Check if any match between these players is still in 'start-req' status
+    const activeStartRequests = response.data.filter((match: any) =>
+      match.status === 'start-req' &&
+      ((match.challenger.username === matchRequest.challenger && match.opponent.username === matchRequest.opponent) ||
+        (match.challenger.username === matchRequest.opponent && match.opponent.username === matchRequest.challenger))
+    );
+
+    if (activeStartRequests.length === 0) {
+      console.log('✓ No active start requests found after timeout');
+      successfulTests++;
+    } else {
+      console.log('✗ Found active start requests after timeout');
+      failedTests++;
+    }
+
+  } catch (error) {
+    console.error('Error testing auto-rejection:', error);
+    failedTests++;
+  }
+  totalTests++;
+}
+
+async function testAutoRejectFinishRequest() {
+  console.log('\n=== Testing Auto-Rejection of Finish Request ===');
+
+  try {
+    await cleanDatabase();
+    for (const profile of profiles) {
+      await createProfile(profile);
+    }
+
+    const matchRequest: MatchRequest = {
+      challenger: 'player1',
+      opponent: 'player2'
+    };
+
+    await axios.post(`${API_URL}/match/start-req`, matchRequest);
+    await axios.post(`${API_URL}/match/start-acc`, matchRequest);
+    await axios.post(`${API_URL}/match/finish-req`, {
+      ...matchRequest,
+      challenger_score: 21,
+      opponent_score: 15,
+    });
+
+    console.log('Waiting for auto-rejection (5 minutes + buffer)...');
+    await new Promise(resolve => setTimeout(resolve, 5.1 * 60 * 1000));
+
+    // Get all matches for the challenger
+    const response = await axios.get(`${API_URL}/match/find-matches`, {
+      params: {
+        challenger: matchRequest.challenger,
+        opponent: matchRequest.opponent,
+      }
+    });
+
+    // Check if any match between these players is still in 'finish-req' status
+    const activeFinishRequests = response.data.filter((match: any) =>
+      match.status === 'finish-req' &&
+      ((match.challenger.username === matchRequest.challenger && match.opponent.username === matchRequest.opponent) ||
+        (match.challenger.username === matchRequest.opponent && match.opponent.username === matchRequest.challenger))
+    );
+
+    if (activeFinishRequests.length === 0) {
+      console.log('✓ No active finish requests found after timeout');
+      successfulTests++;
+    } else {
+      console.log('✗ Found active finish requests after timeout');
+      failedTests++;
+    }
+
+  } catch (error) {
+    console.error('Error testing auto-rejection:', error);
+    failedTests++;
+  }
+  totalTests++;
+}
+
 // Update the main function
 async function testMatchFlow() {
   try {
@@ -220,8 +342,29 @@ async function testMatchFlow() {
       console.log('Test cancelled');
       process.exit(0);
     }
-    
+
     await testAllTransitions();
+
+    // Add confirmations for long-running tests
+    const runStartReject = await confirmLongTest('Auto-reject start request test', 2);
+    if (runStartReject) {
+      await testAutoRejectStartRequest();
+    } else {
+      console.log('Skipping auto-reject start request test');
+    }
+
+    const runFinishReject = await confirmLongTest('Auto-reject finish request test', 5);
+    if (runFinishReject) {
+      await testAutoRejectFinishRequest();
+    } else {
+      console.log('Skipping auto-reject finish request test');
+    }
+
+    // Log final test results
+    console.log('\n=== Final Test Results ===');
+    console.log(`Total tests run: ${totalTests}`);
+    console.log(`Tests succeeded: ${successfulTests}/${totalTests}`);
+    console.log(`Tests failed: ${failedTests}/${totalTests}`);
   } catch (error) {
     if (axios.isAxiosError(error)) {
       console.error('Test failed:', error.response?.data || error.message);

@@ -489,6 +489,35 @@ router.get('/api/match/get-match', async (req, res) => {
   }
 });
 
+router.get('/api/match/find-matches', async (req, res) => {
+  try {
+    validateParams(req.query, {
+      challenger: { required: true, validator: validators.isString },
+      opponent: { required: true, validator: validators.isString },
+    });
+
+    const { challenger, opponent } = req.query;
+    const challengerId = await getProfileId(challenger as string);
+    const opponentId = await getProfileId(opponent as string);
+    const matches = await Match.find({
+      $or: [
+        {
+          challenger: challengerId,
+          opponent: opponentId,
+        },
+        {
+          challenger: opponentId,
+          opponent: challengerId,
+        }
+      ]
+    }).populate('challenger opponent', 'username name');
+    res.json(matches);
+  } catch (error) {
+    res.status(400).json({ error: (error as Error).message });
+  }
+});
+
+/// Gets all matches participated in by a person
 router.get('/api/match/get-matches', async (req, res) => {
   try {
     validateParams(req.query, {
