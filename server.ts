@@ -12,6 +12,19 @@ app.use(express.json());
 
 const router = express.Router();
 
+// WebSocket endpoint for every player to get notified when a match is created with them as the
+// opponent
+// This websocket remains open as long as the player is using the website
+const matchWaitConnections: { [key: string]: WebSocket } = {};
+
+router.ws('/api/match/ws/match-wait/:username', (ws, req) => {
+  const { username } = req.params;
+  matchWaitConnections[username] = ws;
+
+  ws.on('close', () => {
+    delete matchWaitConnections[username];
+  });
+});
 
 // WebSocket endpoint for challenger to get notified when request to start match is accepted or
 // rejected by opponent, or auto-rejected by server after 2 minutes
@@ -224,6 +237,13 @@ router.post('/api/match/start-req', async (req, res) => {
     });
     await match.save();
 
+    if (matchWaitConnections[opponent]) {
+      matchWaitConnections[opponent].send(JSON.stringify({
+        event: 'match-created',
+        matchId: match._id
+      }));
+    }
+
     // Store the ID value, not the match reference
     const matchId = match._id;
 
@@ -243,6 +263,7 @@ router.post('/api/match/start-req', async (req, res) => {
               event: 'match-auto-rejected',
               opponent
             }));
+            startRequestConnections[challenger].close();
           }
         }
       } catch (error) {
@@ -274,6 +295,7 @@ router.post('/api/match/start-acc', async (req, res) => {
         event: 'match-accepted',
         opponent
       }));
+      startRequestConnections[challenger].close();
     }
 
     res.json(match);
@@ -295,6 +317,7 @@ router.post('/api/match/start-rej', async (req, res) => {
     // Notify challenger via WebSocket
     if (startRequestConnections[challenger]) {
       startRequestConnections[challenger].send(JSON.stringify({ event: 'match-rejected', opponent }));
+      startRequestConnections[challenger].close();
     }
 
     res.json(match);
@@ -335,6 +358,7 @@ router.post('/api/match/finish-req', async (req, res) => {
         event: 'finish-request',
         challenger
       }));
+      startAcceptConnections[opponent].close();
     }
 
     // In the timeout, add notification for auto-rejection
@@ -355,6 +379,7 @@ router.post('/api/match/finish-req', async (req, res) => {
               event: 'finish-auto-rejected',
               opponent
             }));
+            finishRequestConnections[challenger].close();
           }
         }
       } catch (error) {
@@ -438,6 +463,7 @@ router.post('/api/match/finish-acc', async (req, res) => {
         event: 'finish-accepted',
         opponent,
       }));
+      finishRequestConnections[challenger].close();
     }
 
     res.json(match);
@@ -462,6 +488,7 @@ router.post('/api/match/finish-rej', async (req, res) => {
         event: 'finish-rejected',
         opponent
       }));
+      finishRequestConnections[challenger].close();
     }
 
     res.json(match);
