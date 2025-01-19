@@ -334,6 +334,75 @@ async function testAutoRejectFinishRequest() {
   totalTests++;
 }
 
+async function testGetMatchById() {
+  console.log('\n=== Testing Get Match By ID ===');
+
+  try {
+    await cleanDatabase();
+    for (const profile of profiles) {
+      await createProfile(profile);
+    }
+
+    const matchRequest: MatchRequest = {
+      challenger: 'player1',
+      opponent: 'player2'
+    };
+
+    // Create a match and get its ID
+    const createResponse = await axios.post(`${API_URL}/match/start-req`, matchRequest);
+    const matchId = createResponse.data._id;
+
+    // Test 1: Valid match ID
+    try {
+      await axios.get(`${API_URL}/match/get-by-id`, {
+        params: { matchId }
+      });
+      console.log('✓ Successfully retrieved match by ID');
+      successfulTests++;
+    } catch (error) {
+      console.log('✗ Failed to retrieve match by ID');
+      failedTests++;
+    }
+
+    // Test 2: Invalid match ID format
+    try {
+      await axios.get(`${API_URL}/match/get-by-id`, {
+        params: { matchId: 'invalid-id' }
+      });
+      console.log('✗ Should reject invalid match ID format');
+      failedTests++;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 400) {
+        console.log('✓ Correctly rejected invalid match ID format');
+        successfulTests++;
+      } else {
+        throw error;
+      }
+    }
+
+    // Test 3: Non-existent match ID
+    try {
+      await axios.get(`${API_URL}/match/get-by-id`, {
+        params: { matchId: '507f1f77bcf86cd799439011' }
+      });
+      console.log('✗ Should reject non-existent match ID');
+      failedTests++;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        console.log('✓ Correctly rejected non-existent match ID');
+        successfulTests++;
+      } else {
+        throw error;
+      }
+    }
+
+  } catch (error) {
+    console.error('Error testing get match by ID:', error);
+    failedTests++;
+  }
+  totalTests += 3;
+}
+
 // Update the main function
 async function testMatchFlow() {
   try {
@@ -344,6 +413,7 @@ async function testMatchFlow() {
     }
 
     await testAllTransitions();
+    await testGetMatchById();
 
     // Add confirmations for long-running tests
     const runStartReject = await confirmLongTest('Auto-reject start request test', 2);

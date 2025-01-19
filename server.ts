@@ -587,6 +587,35 @@ router.post('/api/profile/clean-db', async (_, res) => {
   }
 });
 
+// Add this endpoint after the other match endpoints
+router.get('/api/match/get-by-id', async (req, res) => {
+  try {
+    validateParams(req.query, {
+      matchId: { required: true, validator: validators.isString }
+    });
+
+    const { matchId } = req.query;
+
+    // Validate that matchId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(matchId as string)) {
+      res.status(400).json({ error: 'Invalid match ID format' });
+      return;
+    }
+
+    const match = await Match.findById(matchId)
+      .populate('challenger opponent', 'username name');
+
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    res.json(match);
+  } catch (error) {
+    res.status(400).json({ error: (error as Error).message });
+  }
+});
+
 app.use("/", router);
 
 const PORT = process.env.PORT || 3000;
