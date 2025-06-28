@@ -10,7 +10,7 @@ mkdir -p ./data/logs
 pkill mongod
 
 # Start MongoDB daemon with specified port
-mongod --dbpath ./data/db --port 27018 --logpath ./data/logs/mongodb.log --fork
+mongod --dbpath ./data/db --port 27017 --logpath ./data/logs/mongodb.log --fork
 
 # Wait a few seconds for MongoDB to start
 sleep 3
@@ -18,7 +18,7 @@ sleep 3
 # Check if MongoDB is running
 if pgrep mongod > /dev/null
 then
-    echo "MongoDB is running on port 27018"
+    echo "MongoDB is running on port 27017"
     echo "Data directory: $(pwd)/data/db"
     echo "Log file: $(pwd)/data/logs/mongodb.log"
 else

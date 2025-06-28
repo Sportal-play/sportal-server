@@ -6,17 +6,16 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "ts-node server.ts"
+    "dev": "ts-node server.ts",
+    "cleanup": "ts-node scripts/cleanupExpiredMatches.ts"
   },
   "dependencies": {
-    "express": "^4.17.1",
-    "express-ws": "^5.0.2",
+    "@supabase/supabase-js": "^2.50.0",
+    "dotenv": "^16.6.0",
     "glicko2": "^1.2.1",
     "mongoose": "^6.0.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/express-ws": "^3.0.5",
     "@types/mongoose": "^5.11.96",
     "@types/node": "^22.10.2",
     "axios": "^1.6.2",

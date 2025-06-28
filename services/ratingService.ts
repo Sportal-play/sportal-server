@@ -1,14 +1,13 @@
-import { Glicko2, Player } from 'glicko2';
-import { PlayerRating, RatingResult } from '../types/models';
+const { Glicko2 } = require('glicko2');
 
-interface Settings {
-  tau: number;
-  rating: number;
-  rd: number;
-  vol: number;
-}
+/**
+ * @typedef {Object} PlayerRating
+ * @property {number} rating
+ * @property {number} ratingDeviation
+ * @property {number} volatility
+ */
 
-const settings: Settings = {
+const settings = {
   tau: 0.75,
   rating: 1500,
   rd: 350,
@@ -17,27 +16,24 @@ const settings: Settings = {
 
 const ranking = new Glicko2(settings);
 
-function updatePlayerRatings(
-  challenger: PlayerRating,
-  opponent: PlayerRating,
-  challengerWon: boolean
-): RatingResult {
-  const challengerPlayer: Player = ranking.makePlayer(
+/**
+ * @param {PlayerRating} challenger
+ * @param {PlayerRating} opponent
+ * @param {boolean} challengerWon
+ * @returns {{challenger: PlayerRating, opponent: PlayerRating}}
+ */
+function updatePlayerRatings(challenger, opponent, challengerWon) {
+  const challengerPlayer = ranking.makePlayer(
     challenger.rating || settings.rating,
     challenger.ratingDeviation || settings.rd,
     challenger.volatility || settings.vol
   );
-  
-  const opponentPlayer: Player = ranking.makePlayer(
+  const opponentPlayer = ranking.makePlayer(
     opponent.rating || settings.rating,
     opponent.ratingDeviation || settings.rd,
     opponent.volatility || settings.vol
   );
-  
-  // Update ratings based on match result
   ranking.updateRatings([[challengerPlayer, opponentPlayer, challengerWon ? 1 : 0]]);
-  
-  // Return updated ratings
   return {
     challenger: {
       rating: challengerPlayer.getRating(),
@@ -52,8 +48,7 @@ function updatePlayerRatings(
   };
 }
 
-export {
+module.exports = {
   settings,
-  updatePlayerRatings,
-  Settings,
+  updatePlayerRatings
 }; 
