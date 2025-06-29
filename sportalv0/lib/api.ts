@@ -64,3 +64,15 @@ export async function disputeMatch(matchId: string, disputedScore: { challenger:
   if (!res.ok) throw new Error('Failed to dispute match')
   return res.json()
 } 
+
+export async function getMatchesForUser(username: string) {
+  const res = await fetch(`/api/user/search?query=${encodeURIComponent(username)}`);
+  if (!res.ok) throw new Error('Failed to fetch user');
+  const data = await res.json();
+  const user = (data.results || []).find((u: any) => u.username === username);
+  if (!user) throw new Error('User not found');
+  const profileRes = await fetch(`/api/user/profile/${user._id}`);
+  if (!profileRes.ok) throw new Error('Failed to fetch profile');
+  const profile = await profileRes.json();
+  return profile.matches || [];
+} 

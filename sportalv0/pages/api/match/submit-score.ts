@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getServerSession } from 'next-auth/next';
-import authOptions from '../auth/[...nextauth]';
+import { getToken } from 'next-auth/jwt';
 import { dbConnect } from '../../../lib/mongodb';
 import Match from '../../../models/Match';
 
@@ -10,8 +9,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const session = await getServerSession(req, res, authOptions) as any;
-    if (!session || !session.user) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    if (!token || !(token.id || token.sub)) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -30,8 +29,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     // Allow only challenger or admin
     const adminEmails = [process.env.ADMIN_EMAIL || 'raghavkshyp@gmail.com'];
-    const isAdmin = adminEmails.includes(session.user.email);
-    if (!isAdmin && match.challenger._id.toString() !== (session.user.id || session.user._id || session.user.sub)) {
+    const isAdmin = token.email && adminEmails.includes(token.email);
+    const userId = token.id || token.sub;
+    if (!isAdmin && match.challenger._id.toString() !== userId) {
       return res.status(403).json({ error: 'Forbidden: Only the challenger can submit the score.' });
     }
     // Block Player B if they have unresolved verifications

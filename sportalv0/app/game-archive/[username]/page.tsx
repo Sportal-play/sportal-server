@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRequireProfile } from "@/hooks/useRequireProfile"
+import { formatRating } from "@/lib/utils"
 
 interface GameArchivePageProps {
   params: {
@@ -29,6 +30,21 @@ interface Match {
   verificationStatus: "verified" | "disputed" | "pending"
 }
 
+// Type for match object returned by API
+interface APIMatch {
+  _id: string;
+  challenger: { username: string; rating: number };
+  opponent: { username: string; rating: number };
+  challenger_score: number;
+  opponent_score: number;
+  status: string;
+  time_finish?: string;
+  ratingChallengerBefore?: number;
+  ratingChallengerAfter?: number;
+  ratingOpponentBefore?: number;
+  ratingOpponentAfter?: number;
+}
+
 export default function PlayerGameArchivePage({ params }: GameArchivePageProps) {
   const router = useRouter()
   const [currentPage, setCurrentPage] = useState(1)
@@ -39,8 +55,8 @@ export default function PlayerGameArchivePage({ params }: GameArchivePageProps) 
   const [error, setError] = useState<string | null>(null)
   const { loading: profileLoading, profile } = useRequireProfile()
 
-  // Decode the username from the URL
-  const playerName = decodeURIComponent(params.username)
+  // Use the username param directly
+  const playerName = decodeURIComponent(params.username || '')
 
   useEffect(() => {
     async function fetchMatches() {
@@ -50,22 +66,22 @@ export default function PlayerGameArchivePage({ params }: GameArchivePageProps) 
         const res = await fetch(`/api/matches?username=${encodeURIComponent(playerName)}`)
         if (!res.ok) throw new Error("Failed to fetch matches")
         const matchesRes = await res.json()
-        const formattedMatches = (matchesRes || []).map((match: any) => {
+        const formattedMatches = (matchesRes.matches || []).map((match: APIMatch) => {
           const isPlayer1 = match.challenger.username === playerName
           return {
             id: match._id,
-            player1: match.challenger.username + ` (${match.challenger.rating})`,
-            player2: match.opponent.username + ` (${match.opponent.rating})`,
+            player1: match.challenger.username + ` (${formatRating(match.ratingChallengerBefore ?? match.challenger.rating)})`,
+            player2: match.opponent.username + ` (${formatRating(match.ratingOpponentBefore ?? match.opponent.rating)})`,
             score1: match.challenger_score,
             score2: match.opponent_score,
             result: isPlayer1
               ? (match.challenger_score > match.opponent_score ? "Won" : "Lost")
               : (match.opponent_score > match.challenger_score ? "Won" : "Lost"),
             date: match.time_finish ? new Date(match.time_finish).toLocaleDateString() : "",
-            rating1Before: match.challenger.rating,
-            rating1After: match.challenger.rating,
-            rating2Before: match.opponent.rating,
-            rating2After: match.opponent.rating,
+            rating1Before: formatRating(match.ratingChallengerBefore ?? match.challenger.rating),
+            rating1After: formatRating(match.ratingChallengerAfter ?? match.challenger.rating),
+            rating2Before: formatRating(match.ratingOpponentBefore ?? match.opponent.rating),
+            rating2After: formatRating(match.ratingOpponentAfter ?? match.opponent.rating),
             verificationStatus: match.status === "finish-acc"
               ? "verified"
               : match.status === "finish-rej"

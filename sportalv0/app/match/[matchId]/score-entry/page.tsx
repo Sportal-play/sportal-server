@@ -8,6 +8,8 @@ import { ScoreSelector } from "@/components/ScoreSelector"
 import { useScoreVerification } from "@/contexts/ScoreVerificationContext"
 import { getMatchById, submitMatchResult } from "@/lib/api"
 import React from "react"
+import { useSession } from "next-auth/react"
+import { useToast } from "@/components/ui/use-toast"
 
 interface ScoreEntryPageProps {
   params: {
@@ -26,13 +28,12 @@ export default function ScoreEntryPage({ params }: ScoreEntryPageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [matchDetails, setMatchDetails] = useState<any>(null)
+  const { data: session, status } = useSession()
+  const { toast } = useToast()
 
   // Unwrap params if it's a Promise (Next.js App Router)
   // @ts-ignore
   const paramsObj = typeof params.then === 'function' ? React.use(params) as { matchId: string } : params;
-
-  // For demo, assume current user is 'JohnDoe123'
-  const currentUser = "JohnDoe123"
 
   useEffect(() => {
     async function fetchMatch() {
@@ -67,28 +68,44 @@ export default function ScoreEntryPage({ params }: ScoreEntryPageProps) {
       // Submit the score
       await submitMatchResult(
         matchDetails._id,
-        challenger === currentUser ? playerScores.you : playerScores.opponent,
-        challenger === currentUser ? playerScores.opponent : playerScores.you
+        challenger === (session?.user as any)?.username ? playerScores.you : playerScores.opponent,
+        challenger === (session?.user as any)?.username ? playerScores.opponent : playerScores.you
       )
-    // Show the verification pending modal for the submitter
-    showSubmitterVerification(paramsObj.matchId, matchDetails.opponent, {
-      playerScore: playerScores.you,
-      opponentScore: playerScores.opponent,
-    })
+      // Show a toast and redirect to homepage
+      toast({ title: "Scores submitted!", description: "Your scores have been submitted successfully." });
+      setTimeout(() => {
+        router.replace("/");
+      }, 400);
+      // Optionally, show the verification pending modal for the submitter (if you want to keep it)
+      // showSubmitterVerification(paramsObj.matchId, matchDetails.opponent, {
+      //   playerScore: playerScores.you,
+      //   opponentScore: playerScores.opponent,
+      // })
     } catch (err) {
-      setError("Error submitting scores.")
+      setError("Error submitting scores.");
+      toast({ title: "Error", description: "Error submitting scores.", variant: "destructive" });
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  if (loading) return <div className="p-4">Loading match details...</div>
+  if (loading || status === "loading") return <div className="p-4">Loading match details...</div>
   if (error) return <div className="p-4">{error}</div>
   if (!matchDetails) return <div className="p-4">Match not found.</div>
+  if (!session || !session.user) return <div className="p-4">Not authenticated.</div>
 
-  // Determine opponent info
-  const isChallenger = matchDetails.challenger.username === currentUser
-  const opponent = isChallenger ? matchDetails.opponent : matchDetails.challenger
+  // Only allow the challenger to enter the score, and only if match is pending, accepted, and has no score
+  const isChallenger = matchDetails.challenger.username === (session.user as any).username
+  const isPendingAccepted = matchDetails.status === 'pending' && matchDetails.challengeAcceptedAt && !matchDetails.score
+  if (!isChallenger || !isPendingAccepted) {
+    // Redirect to match in-progress page
+    if (typeof window !== 'undefined') {
+      router.replace(`/match/${paramsObj.matchId}/in-progress`)
+    }
+    return null
+  }
+
+  const opponent = matchDetails.opponent
 
   return (
     <div className="min-h-screen p-4">
@@ -103,14 +120,18 @@ export default function ScoreEntryPage({ params }: ScoreEntryPageProps) {
         <div className="flex justify-between items-center mb-8">
           <div className="text-center flex-1">
             <h2 className="text-xl font-bold mb-1">You</h2>
-            <div className="text-sm text-muted-foreground">{currentUser}</div>
-            <div className="text-primary font-medium">-</div>
+            <div className="text-sm text-muted-foreground">{(session.user as any).username}</div>
+            <div className="text-primary font-medium">
+              {matchDetails.challenger?.rating ? Math.round(matchDetails.challenger.rating) : '-'}
+            </div>
           </div>
           <div className="text-xl font-bold">vs</div>
           <div className="text-center flex-1">
-            <h2 className="text-xl font-bold mb-1">{opponent.username}</h2>
-            <div className="text-sm text-muted-foreground">Opponent</div>
-            <div className="text-primary font-medium">{opponent.rating}</div>
+            <h2 className="text-xl font-bold mb-1">Opponent</h2>
+            <div className="text-sm text-muted-foreground">{opponent.username}</div>
+            <div className="text-primary font-medium">
+              {opponent.rating ? Math.round(opponent.rating) : '-'}
+            </div>
           </div>
         </div>
 

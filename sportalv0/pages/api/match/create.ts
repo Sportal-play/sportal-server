@@ -21,13 +21,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!challengerProfile || !opponentProfile) {
       return res.status(404).json({ error: 'Challenger or opponent not found' });
     }
-    // Limit to 1 outgoing challenge per user
-    const existingOutgoing = await Match.findOne({
+    // Limit to 1 outgoing challenge per user-opponent pair
+    const existingPending = await Match.findOne({
       challenger: challengerProfile._id,
+      opponent: opponentProfile._id,
       status: 'pending'
     });
-    if (existingOutgoing) {
-      return res.status(400).json({ error: 'You already have a pending challenge. Please resolve it before sending another.' });
+    if (existingPending) {
+      return res.status(400).json({ error: 'You already have a pending challenge with this opponent. Please resolve it before sending another.' });
     }
     // Also block if there is a pending match that was accepted but not completed (score not submitted)
     const acceptedButNotCompleted = await Match.findOne({

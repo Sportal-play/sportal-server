@@ -2,6 +2,8 @@ import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { MongoDBAdapter } from '@next-auth/mongodb-adapter';
 import clientPromise from '../../../lib/mongodb';
+import { dbConnect } from '../../../lib/mongodb';
+import User from '../../../models/User';
 
 export default NextAuth({
   providers: [
@@ -15,21 +17,39 @@ export default NextAuth({
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user, account, profile }) {
-      // On initial sign in, persist the username to the token
+    async jwt({ token, user }) {
+      console.log('[DEBUG] JWT callback - user:', user, 'token:', token);
+      // On initial sign in, persist the user id to the token
       if (user) {
-        token.username = (user as any).username;
+        token.id = user.id;
+        // Fetch profile for username and rating
+        const client = await clientPromise;
+        const db = client.db();
+        const profile = await db.collection('profiles').findOne({ _id: new (require('mongodb').ObjectId)(user.id) });
+        if (profile) {
+          token.username = profile.username || null;
+          token.rating = profile.rating || null;
+        }
       }
       return token;
     },
-    async session({ session, token, user }) {
-      // Attach user id to session
-      if (token && session.user) {
-        (session.user as any).id = token.sub;
-        if (token.username) (session.user as any).username = token.username;
-      }
-      return session;
+    async session({ session, token }) {
+      console.log('[DEBUG] Session callback - token:', token, 'session.user:', session.user);
+      await dbConnect();
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id: token.id || token.sub,
+          username: token.username || null,
+          rating: token.rating || null,
+        }
+      };
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: '/auth',
+    newUser: '/auth/new-user',
+  },
 }); 

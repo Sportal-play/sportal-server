@@ -43,9 +43,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const client = await clientPromise;
     const db = client.db();
 
-    // Fetch the match to get scoreSubmittedAt
+    // Fetch the match to get scoreSubmittedAt and player ratings before
     const matchDoc = await db.collection('matches').findOne({ _id: new ObjectId(matchId) });
     const matchDate = matchDoc?.scoreSubmittedAt ? new Date(matchDoc.scoreSubmittedAt) : new Date();
+
+    // Fetch player ratings before
+    const playerADoc = await db.collection('profiles').findOne({ _id: new ObjectId(playerA) });
+    const playerBDoc = await db.collection('profiles').findOne({ _id: new ObjectId(playerB) });
+    const ratingChallengerBefore = playerADoc?.rating ?? 1500;
+    const ratingOpponentBefore = playerBDoc?.rating ?? 1500;
 
     // 4. Update the matches collection
     await db.collection('matches').updateOne(
@@ -54,7 +60,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         $set: {
           status: 'verified',
           verifiedBy: playerB,
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          ratingChallengerBefore,
+          ratingChallengerAfter: newRatingA,
+          ratingOpponentBefore,
+          ratingOpponentAfter: newRatingB
         }
       }
     );

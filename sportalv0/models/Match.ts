@@ -15,6 +15,12 @@ const matchSchema = new mongoose.Schema({
     opponent: { type: Number, min: 0, max: 21 }
   },
 
+  // Historical ratings
+  ratingChallengerBefore: { type: Number },
+  ratingChallengerAfter: { type: Number },
+  ratingOpponentBefore: { type: Number },
+  ratingOpponentAfter: { type: Number },
+
   // ✅ Match flow and outcome
   status: {
     type: String,

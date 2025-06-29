@@ -38,6 +38,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
       const challengerWon = match.disputedScore.challenger > match.disputedScore.opponent;
       const result = updatePlayerRatings(challengerRating, opponentRating, challengerWon);
+      // Fetch player ratings before
+      const challengerBefore = match.challenger.rating ?? 1500;
+      const opponentBefore = match.opponent.rating ?? 1500;
       // Update profiles
       const matchDate = match.scoreSubmittedAt ? new Date(match.scoreSubmittedAt) : new Date();
       await Profile.findByIdAndUpdate(match.challenger._id, {
@@ -76,6 +79,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       match.disputeState = 'verified';
       match.verifiedAt = new Date();
       match.disputeHistory.push({ by: match.challenger._id, at: new Date(), action: 'verify', score: match.disputedScore });
+      match.ratingChallengerBefore = challengerBefore;
+      match.ratingChallengerAfter = result.challenger.rating;
+      match.ratingOpponentBefore = opponentBefore;
+      match.ratingOpponentAfter = result.opponent.rating;
       await match.save();
       return res.status(200).json({ match });
     } else if (action === 'dispute') {

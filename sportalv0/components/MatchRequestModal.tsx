@@ -5,6 +5,7 @@ import { X, CheckCircle, XCircle, Swords } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { formatRating } from "../lib/utils"
+import { useToast } from "@/components/ui/use-toast"
 
 interface MatchRequestModalProps {
   isOpen: boolean
@@ -21,6 +22,7 @@ interface MatchRequestModalProps {
 
 export function MatchRequestModal({ isOpen, onClose, challenger, onAccept, onReject }: MatchRequestModalProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast();
 
   const handleAccept = async () => {
     setIsLoading(true)
@@ -32,14 +34,17 @@ export function MatchRequestModal({ isOpen, onClose, challenger, onAccept, onRej
       })
       setIsLoading(false)
       if (res.ok) {
-        onAccept()
-        onClose()
+        toast({ title: 'Match accepted!', description: 'You have accepted the match challenge.' });
+        setTimeout(() => {
+          onAccept();
+          onClose();
+        }, 400);
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to accept match')
+        toast({ title: 'Error', description: data.error || 'Failed to accept match', variant: 'destructive' });
       }
     } catch (err) {
-      alert('Network error')
+      toast({ title: 'Network error', description: 'Could not accept match. Please try again.', variant: 'destructive' });
       setIsLoading(false)
     }
   }

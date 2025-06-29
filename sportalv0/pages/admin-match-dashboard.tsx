@@ -407,6 +407,23 @@ export default function AdminMatchDashboard() {
                               disabled={!canSubmitScore}
                             >Submit Score</button>
                           </div>
+                          {/* Player A verify/dispute after Player B disputes */}
+                          {m.disputeState === 'pending-challenger' && (
+                            <>
+                              <button
+                                className="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
+                                onClick={() => matchAction(m._id, 'verify')}
+                              >
+                                Verify (A)
+                              </button>
+                              <button
+                                className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                                onClick={() => matchAction(m._id, 'dispute')}
+                              >
+                                Dispute (A)
+                              </button>
+                            </>
+                          )}
                           {/* Verify Score */}
                           <button
                             className="bg-green-600 text-white px-2 py-1 rounded disabled:opacity-50 hover:bg-green-500"

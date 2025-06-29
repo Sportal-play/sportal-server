@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import authOptions from '../auth/[...nextauth]';
 import { dbConnect } from '../../../lib/mongodb';
 import Match from '../../../models/Match';
+import { getToken } from "next-auth/jwt";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -10,8 +11,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const session = await getServerSession(req, res, authOptions) as any;
-    if (!session || !session.user) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    if (!token || !(token.id || token.sub)) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -36,9 +37,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     // Allow admin to accept any challenge
     const adminEmails = [process.env.ADMIN_EMAIL || 'raghavkshyp@gmail.com'];
-    const isAdmin = adminEmails.includes(session.user.email);
-    if (!isAdmin && match.opponent._id.toString() !== (session.user.id || session.user._id || session.user.sub)) {
-      return res.status(403).json({ error: 'Forbidden: Only the opponent can accept this challenge.' });
+    const isAdmin = token.email && adminEmails.includes(token.email);
+    const userId = token.id || token.sub;
+    if (!isAdmin && !match.opponent._id.equals(userId)) {
+      return res.status(403).json({ message: "Only the opponent can accept this challenge." });
     }
     // Block Player B if they have unresolved verifications
     const unresolved = await Match.findOne({

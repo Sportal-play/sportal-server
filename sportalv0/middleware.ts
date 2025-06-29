@@ -17,8 +17,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow access to /auth/new-user for authenticated users
+  // Allow access to /auth/new-user only for authenticated users
   if (pathname === '/auth/new-user') {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    if (!token) {
+      return NextResponse.redirect(new URL('/auth', req.url));
+    }
     return NextResponse.next();
   }
   // Allow access to /auth for unauthenticated users

@@ -41,6 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     match.disputedBy = match.opponent._id;
     match.disputedAt = new Date();
     match.disputeHistory.push({ by: match.opponent._id, at: new Date(), action: 'dispute', score: disputedScore, reason, comment });
+    match.status = 'disputed';
     await match.save();
     return res.status(200).json({ match });
   } catch (err) {

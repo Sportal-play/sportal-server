@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { Glicko2 } = require('glicko2');
 
 /**
@@ -17,10 +18,10 @@ const settings = {
 const ranking = new Glicko2(settings);
 
 /**
- * @param {PlayerRating} challenger
- * @param {PlayerRating} opponent
+ * @param {{rating: number, ratingDeviation: number, volatility: number}} challenger
+ * @param {{rating: number, ratingDeviation: number, volatility: number}} opponent
  * @param {boolean} challengerWon
- * @returns {{challenger: PlayerRating, opponent: PlayerRating}}
+ * @returns {{challenger: {rating: number, ratingDeviation: number, volatility: number}, opponent: {rating: number, ratingDeviation: number, volatility: number}}}
  */
 function updatePlayerRatings(challenger, opponent, challengerWon) {
   const challengerPlayer = ranking.makePlayer(

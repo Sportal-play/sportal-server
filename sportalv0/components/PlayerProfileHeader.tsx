@@ -70,37 +70,37 @@ export const PlayerProfileHeader: React.FC<PlayerProfileHeaderProps> = ({
         <div className="flex flex-wrap gap-4 items-center">
           {(!isOwnProfile) && (
             <>
-              <Button
-                variant="outline"
-                className={`flex items-center ${isFriend ? "bg-secondary" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}
-              >
-                {isFriend ? (
-                  <>
-                    <Users className="w-5 h-5 mr-2" />
-                    Friends
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-5 h-5 mr-2" />
-                    Add Friend
-                  </>
-                )}
-              </Button>
+          <Button
+            variant="outline"
+            className={`flex items-center ${isFriend ? "bg-secondary" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}
+          >
+            {isFriend ? (
+              <>
+                <Users className="w-5 h-5 mr-2" />
+                Friends
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-5 h-5 mr-2" />
+                Add Friend
+              </>
+            )}
+          </Button>
 
-              <Button
-                variant="outline"
-                className="flex items-center bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={handleChallenge}
-              >
-                <Swords className="w-5 h-5 mr-2" />
-                Challenge
-              </Button>
+            <Button
+              variant="outline"
+              className="flex items-center bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleChallenge}
+            >
+              <Swords className="w-5 h-5 mr-2" />
+              Challenge
+            </Button>
 
-              <div className="flex items-center bg-card rounded-lg px-4 py-2">
-                <span className="font-semibold mr-2">Me vs {playerName.split(" ")[0]}:</span>
-                <span className="text-[#03DAC6] font-semibold mr-1">{headToHead.wins}W</span>
-                <span className="text-destructive font-semibold">{headToHead.losses}L</span>
-              </div>
+          <div className="flex items-center bg-card rounded-lg px-4 py-2">
+            <span className="font-semibold mr-2">Me vs {playerName.split(" ")[0]}:</span>
+            <span className="text-[#03DAC6] font-semibold mr-1">{headToHead.wins}W</span>
+            <span className="text-destructive font-semibold">{headToHead.losses}L</span>
+          </div>
             </>
           )}
         </div>

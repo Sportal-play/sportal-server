@@ -36,16 +36,22 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen p-4">
-      {isAdmin && (
-        <div className="flex justify-end mb-2">
+      <div className="flex justify-end gap-2 mb-2">
+        {isAdmin && (
           <a
             href="/admin-match-dashboard"
             className="bg-gray-900 text-white rounded px-4 py-2 font-semibold shadow hover:bg-gray-700 transition"
           >
             Admin
           </a>
-        </div>
-      )}
+        )}
+          <button
+            onClick={() => signOut()}
+            className="bg-[#49C5B6] border border-[#49C5B6] text-white rounded px-4 py-2 font-semibold shadow hover:bg-[#38b0a3] transition"
+          >
+            Log out
+          </button>
+      </div>
       <Header user={profile} />
       {/* <PlayerProfileHeader
         playerName={profile.username}
